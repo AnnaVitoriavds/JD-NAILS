@@ -1,0 +1,70 @@
+{
+  "settings": {
+    "whatsapp": "5561981735176",
+    "hours": {
+      "0": {
+        "label": "Domingo",
+        "closed": true,
+        "open": "",
+        "close": ""
+      },
+      "1": {
+        "label": "Segunda-feira",
+        "closed": false,
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "2": {
+        "label": "Terça-feira",
+        "closed": false,
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "3": {
+        "label": "Quarta-feira",
+        "closed": false,
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "4": {
+        "label": "Quinta-feira",
+        "closed": false,
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "5": {
+        "label": "Sexta-feira",
+        "closed": false,
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "6": {
+        "label": "Sábado",
+        "closed": false,
+        "open": "09:00",
+        "close": "15:00"
+      }
+    },
+    "holidaysClosed": true,
+    "blockedDates": []
+  },
+  "media": {
+    "hero": "",
+    "about": "",
+    "portfolio": []
+  },
+  "bookings": [
+    {
+      "id": "dcd52abd-b65e-4798-95a0-6eaf49964040",
+      "createdAt": "2026-09-03T13:54:27.462Z",
+      "status": "pendente",
+      "name": "Anna Vitória",
+      "phone": "(19) 8122-7067",
+      "service": "Esmaltação",
+      "date": "2026-10-10",
+      "time": "10:00",
+      "firstVisit": "Sim",
+      "notes": "Sem observações."
+    }
+  ]
+}

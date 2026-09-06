@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#F4A7C3">
+  <title>Painel JD Nails</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <section class="login-screen" id="loginScreen">
+    <form class="login-card" id="loginForm">
+      <div class="admin-brand"><strong>JD <em>Nails</em></strong><span>Painel administrativo</span></div>
+      <h1>Bem-vinda 💗</h1><p>Entre para gerenciar horários, fotos e agendamentos.</p>
+      <label>Login<input id="loginUser" autocomplete="username" required></label>
+      <label>Senha<input id="loginPass" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Entrar no painel</button><small id="loginStatus"></small>
+      <a href="index.html">← Voltar para o site</a>
+    </form>
+  </section>
+
+  <div class="admin-app" id="adminApp" hidden>
+    <aside class="sidebar">
+      <div class="admin-brand"><strong>JD <em>Nails</em></strong><span>Admin</span></div>
+      <nav><button class="nav-item active" data-tab="dashboard">Visão geral</button><button class="nav-item" data-tab="bookings">Agendamentos</button><button class="nav-item" data-tab="hours">Horários</button><button class="nav-item" data-tab="media">Fotos do site</button></nav>
+      <div class="side-bottom"><a href="index.html" target="_blank">Abrir site ↗</a><button id="logoutBtn">Sair</button></div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar"><div><span class="eyebrow">STUDIO JD</span><h1 id="pageTitle">Visão geral</h1></div><button class="mobile-menu" id="mobileMenu">☰</button></header>
+
+      <section class="tab active" id="tab-dashboard">
+        <div class="stats"><article><span>Pedidos</span><strong id="statAll">0</strong><small>Total registrado</small></article><article><span>Pendentes</span><strong id="statPending">0</strong><small>Aguardando confirmação</small></article><article><span>Confirmados</span><strong id="statConfirmed">0</strong><small>Horários confirmados</small></article><article><span>Fotos</span><strong id="statPhotos">0</strong><small>No portfólio</small></article></div>
+        <div class="panel"><div class="panel-head"><div><h2>Últimos agendamentos</h2><p>Pedidos enviados pelo site.</p></div><button class="text-btn" data-go="bookings">Ver todos →</button></div><div id="recentBookings"></div></div>
+      </section>
+
+      <section class="tab" id="tab-bookings">
+        <div class="panel"><div class="panel-head"><div><h2>Agendamentos</h2><p>Confirme pelo WhatsApp e atualize o status aqui.</p></div><div class="filters"><select id="bookingFilter"><option value="all">Todos</option><option value="pendente">Pendentes</option><option value="confirmado">Confirmados</option><option value="concluido">Concluídos</option><option value="cancelado">Cancelados</option></select></div></div><div id="bookingsList"></div></div>
+      </section>
+
+      <section class="tab" id="tab-hours">
+        <div class="panel"><div class="panel-head"><div><h2>Horários de atendimento</h2><p>Altere os dias e horários que aparecem no site e controlam o formulário.</p></div><button class="primary" id="saveHours">Salvar horários</button></div><div class="hours-editor" id="hoursEditor"></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Feriados e datas bloqueadas</h2><p>Domingo já fica fechado. Adicione feriados, folgas e datas sem atendimento.</p></div></div><div class="blocked-form"><input type="date" id="blockedDate"><button class="primary" id="addBlocked">Bloquear data</button></div><div class="chips" id="blockedDates"></div></div>
+      </section>
+
+      <section class="tab" id="tab-media">
+        <div class="panel"><div class="panel-head"><div><h2>Fotos do site</h2><p>Troque a foto principal, a foto “Sobre” ou adicione trabalhos ao portfólio.</p></div></div>
+          <form class="media-form" id="mediaForm"><label>Onde colocar?<select id="mediaArea"><option value="portfolio">Portfólio</option><option value="hero">Foto principal (capa)</option><option value="about">Seção Sobre</option></select></label><label>Título<input id="mediaTitle" placeholder="Ex.: Francesinha delicada"></label><label>Categoria<input id="mediaCategory" placeholder="Ex.: Alongamento"></label><label class="file-label">Escolher imagem<input id="mediaFile" type="file" accept="image/jpeg,image/png,image/webp" required><span id="fileName">Nenhum arquivo escolhido</span></label><button class="primary" type="submit">Adicionar imagem</button><small id="mediaStatus"></small></form>
+          <div class="media-grid" id="mediaGrid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="admin.js"></script>
+</body>
+</html>

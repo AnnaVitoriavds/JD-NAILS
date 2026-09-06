@@ -1,0 +1,13 @@
+{
+  "name": "jd-nails-site",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Site JD Nails com agendamento, WhatsApp e painel administrativo.",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check script.js && node --check admin.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
