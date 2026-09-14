@@ -55,6 +55,19 @@
   },
   "bookings": [
     {
+      "id": "d8981db1-5b87-4cdb-a9bf-6618fafd03d8",
+      "createdAt": "2026-09-14T11:52:07.608Z",
+      "status": "pendente",
+      "name": "Anna Vitória",
+      "phone": "(61) 98122-7067",
+      "service": "Pézinho de Luxo",
+      "date": "2026-09-16",
+      "day": "Quarta-feira",
+      "time": "09:30",
+      "firstVisit": "Não",
+      "notes": "Cor rosa clara, https://br.pinterest.com/pin/683843524716360323/essa referencia"
+    },
+    {
       "id": "dcd52abd-b65e-4798-95a0-6eaf49964040",
       "createdAt": "2026-09-03T13:54:27.462Z",
       "status": "pendente",
