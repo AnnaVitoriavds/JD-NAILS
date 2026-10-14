@@ -684,6 +684,77 @@
 
 
 
+        <!-- AGENDA: DATAS AUTOMATICAMENTE BLOQUEADAS E DISPONÍVEIS -->
+
+        <div class="panel agenda-control-panel">
+
+          <div class="panel-head">
+            <div>
+              <span class="panel-kicker">CONTROLE INTELIGENTE DA AGENDA</span>
+              <h2>Datas do site</h2>
+              <p>
+                Uma data com agendamento ativo é bloqueada automaticamente no site.
+                Aqui você vê, separadamente, o que já está ocupado e o que ainda pode ser escolhido pelas clientes.
+              </p>
+            </div>
+            <button class="ghost-refresh" id="refreshAgendaDates" type="button">
+              ↻ Atualizar agenda
+            </button>
+          </div>
+
+          <div class="agenda-summary">
+            <article class="agenda-summary-card available">
+              <span>Disponíveis no site</span>
+              <strong id="availableDatesCount">0</strong>
+              <small>Próximos 45 dias</small>
+            </article>
+            <article class="agenda-summary-card booked">
+              <span>Já agendadas</span>
+              <strong id="bookedDatesCount">0</strong>
+              <small>Bloqueio automático</small>
+            </article>
+            <article class="agenda-summary-card blocked">
+              <span>Bloqueios manuais</span>
+              <strong id="manualBlockedCount">0</strong>
+              <small>Folgas e datas fechadas</small>
+            </article>
+          </div>
+
+          <div class="schedule-columns">
+
+            <section class="schedule-column booked-column">
+              <div class="schedule-column-head">
+                <div>
+                  <span class="dot dot-booked"></span>
+                  <strong>Datas já agendadas</strong>
+                </div>
+                <small>Não aparecem para novas clientes</small>
+              </div>
+              <div class="date-admin-list" id="bookedDatesAdmin"></div>
+            </section>
+
+            <section class="schedule-column available-column">
+              <div class="schedule-column-head">
+                <div>
+                  <span class="dot dot-available"></span>
+                  <strong>Datas disponíveis</strong>
+                </div>
+                <small>São as datas exibidas no site</small>
+              </div>
+              <div class="date-admin-list" id="availableDatesAdmin"></div>
+            </section>
+
+          </div>
+
+          <div class="agenda-note">
+            <b>Como funciona:</b>
+            assim que uma cliente registra o agendamento, a data inteira passa a ser considerada ocupada e some da lista pública.
+            Se o agendamento for cancelado ou excluído, a data volta a ficar disponível automaticamente, desde que não exista bloqueio manual.
+          </div>
+
+        </div>
+
+
         <!-- DATAS BLOQUEADAS -->
 
         <div
@@ -697,12 +768,12 @@
             <div>
 
               <h2>
-                Feriados e datas bloqueadas
+                Bloqueios manuais
               </h2>
 
               <p>
-                Cadastre folgas, feriados ou qualquer data
-                em que não haverá atendimento.
+                Cadastre folgas, feriados, compromissos pessoais ou qualquer data
+                que você queira retirar manualmente do site.
               </p>
 
             </div>

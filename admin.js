@@ -1118,6 +1118,7 @@ $("#saveHours").onclick =
       await loadHours();
 
       renderHours();
+      renderAgendaDates();
 
       alert(
         "Horários salvos com sucesso!"
@@ -1231,6 +1232,7 @@ $("#addBlocked").onclick =
       await loadBlockedDates();
 
       renderBlocked();
+      renderAgendaDates();
 
     } catch (error) {
 
@@ -1258,6 +1260,7 @@ window.removeBlocked =
       await loadBlockedDates();
 
       renderBlocked();
+      renderAgendaDates();
 
     } catch (error) {
 
@@ -1269,6 +1272,204 @@ window.removeBlocked =
 
     }
   };
+
+/* =========================================================
+   CONTROLE DE DATAS DA AGENDA
+   Regra principal: qualquer agendamento não cancelado ocupa
+   a data inteira e a remove automaticamente do site.
+========================================================= */
+
+const ADMIN_AVAILABILITY_WINDOW = 45;
+
+function parseAdminDate(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function adminDateKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function weekdayFor(value) {
+  const date = parseAdminDate(value);
+  const label = new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function activeBookings() {
+  return store.bookings.filter((booking) => booking.status !== "cancelado");
+}
+
+function bookedDateMap() {
+  const map = new Map();
+  activeBookings().forEach((booking) => {
+    if (!map.has(booking.date)) map.set(booking.date, []);
+    map.get(booking.date).push(booking);
+  });
+  return map;
+}
+
+function isManualBlocked(value) {
+  return store.blockedDates.some((item) => item.data === value);
+}
+
+function hourForDate(value) {
+  const day = parseAdminDate(value).getDay();
+  return store.hours.find((item) => Number(item.dia_semana) === day);
+}
+
+function adminDateIsOpen(value) {
+  const row = hourForDate(value);
+  return !!row && !!row.aberto && !!row.hora_abertura && !!row.hora_fechamento;
+}
+
+function adminIsNationalHoliday(value) {
+  const date = parseAdminDate(value);
+  const mmdd = `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return new Set(["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"]).has(mmdd);
+}
+
+function adminHasFutureSlot(value) {
+  const row = hourForDate(value);
+  if (!row || !row.aberto) return false;
+  const today = new Date();
+  const todayKey = adminDateKey(today);
+  if (value !== todayKey) return true;
+  const open = String(row.hora_abertura || "00:00").slice(0, 5);
+  const close = String(row.hora_fechamento || "00:00").slice(0, 5);
+  const [openH, openM] = open.split(":").map(Number);
+  const [closeH, closeM] = close.split(":").map(Number);
+  for (let minutes = openH * 60 + openM; minutes < closeH * 60 + closeM; minutes += 30) {
+    const slot = new Date(today);
+    slot.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+    if (slot.getTime() > Date.now()) return true;
+  }
+  return false;
+}
+
+function futureAvailableDates() {
+  const booked = bookedDateMap();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const result = [];
+
+  for (let offset = 0; offset < ADMIN_AVAILABILITY_WINDOW; offset++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    const value = adminDateKey(date);
+
+    if (!adminDateIsOpen(value)) continue;
+    if (!adminHasFutureSlot(value)) continue;
+    if (adminIsNationalHoliday(value)) continue;
+    if (isManualBlocked(value)) continue;
+    if (booked.has(value)) continue;
+
+    result.push(value);
+  }
+
+  return result;
+}
+
+function renderAgendaDates() {
+  const bookedBox = $("#bookedDatesAdmin");
+  const availableBox = $("#availableDatesAdmin");
+  if (!bookedBox || !availableBox) return;
+
+  const todayKey = adminDateKey(new Date());
+  const grouped = bookedDateMap();
+  const bookedEntries = [...grouped.entries()]
+    .filter(([date]) => date >= todayKey)
+    .sort(([a], [b]) => a.localeCompare(b));
+  const available = futureAvailableDates();
+
+  $("#bookedDatesCount").textContent = bookedEntries.length;
+  $("#availableDatesCount").textContent = available.length;
+  $("#manualBlockedCount").textContent = store.blockedDates.filter((item) => item.data >= todayKey).length;
+
+  bookedBox.innerHTML = bookedEntries.length
+    ? bookedEntries.map(([date, bookings]) => {
+        const first = bookings[0];
+        const names = bookings.map((item) => esc(item.name)).join(", ");
+        const details = bookings.map((item) => `${esc(item.time)} · ${esc(item.service)}`).join("<br>");
+        return `
+          <article class="agenda-date-card is-booked">
+            <div class="date-badge">
+              <strong>${formatDate(date)}</strong>
+              <span>${esc(weekdayFor(date))}</span>
+            </div>
+            <div class="date-card-body">
+              <b>${names}</b>
+              <small>${details}</small>
+              <span class="auto-lock-pill">Bloqueada automaticamente</span>
+            </div>
+            <a class="date-card-action whatsapp" href="${waFor(first)}" target="_blank" rel="noopener">WhatsApp</a>
+          </article>
+        `;
+      }).join("")
+    : `<div class="availability-empty">Nenhuma data futura está agendada.</div>`;
+
+  availableBox.innerHTML = available.length
+    ? available.map((date) => {
+        const hour = hourForDate(date);
+        const open = String(hour?.hora_abertura || "").slice(0, 5);
+        const close = String(hour?.hora_fechamento || "").slice(0, 5);
+        return `
+          <article class="agenda-date-card is-available">
+            <div class="date-badge">
+              <strong>${formatDate(date)}</strong>
+              <span>${esc(weekdayFor(date))}</span>
+            </div>
+            <div class="date-card-body">
+              <b>Disponível no site</b>
+              <small>${esc(open)} às ${esc(close)}</small>
+            </div>
+            <button class="date-card-action block" type="button" onclick="blockDateQuick('${date}')">Bloquear</button>
+          </article>
+        `;
+      }).join("")
+    : `<div class="availability-empty">Nenhuma data livre nos próximos ${ADMIN_AVAILABILITY_WINDOW} dias.</div>`;
+}
+
+window.blockDateQuick = async function (date) {
+  try {
+    const { error } = await db
+      .from("datas_bloqueadas")
+      .insert({ data: date, motivo: "Bloqueado pelo painel" });
+
+    if (error && error.code !== "23505") throw error;
+
+    await loadBlockedDates();
+    renderBlocked();
+    renderAgendaDates();
+  } catch (error) {
+    console.error(error);
+    alert("Não foi possível bloquear esta data.");
+  }
+};
+
+$("#refreshAgendaDates")?.addEventListener("click", async () => {
+  const button = $("#refreshAgendaDates");
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "Atualizando…";
+  try {
+    await Promise.all([loadBookings(), loadHours(), loadBlockedDates()]);
+    renderBookings();
+    renderHours();
+    renderBlocked();
+    renderAgendaDates();
+  } catch (error) {
+    console.error(error);
+    alert("Não foi possível atualizar a agenda.");
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+});
 
 /* =========================================================
    FOTOS - SUPABASE STORAGE
@@ -1501,6 +1702,8 @@ function renderAll() {
   renderHours();
 
   renderBlocked();
+
+  renderAgendaDates();
 
   renderMedia();
 }

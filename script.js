@@ -347,11 +347,18 @@ const dateInput =
 $('#date');
 const timeInput =
 $('#time');
+const dateOptions =
+$('#dateOptions');
+const timeOptions =
+$('#timeOptions');
 const bookingForm =
 $('#bookingForm');
 const phoneInput =
 $('#phone');
 let publicConfig = null;
+const AVAILABLE_DAYS_WINDOW = 45;
+const bookedDateCache = new Map();
+
 /* =========================================================
 SUPABASE
 ========================================================= */
@@ -489,7 +496,7 @@ console.warn(
 );
 renderHours();
 renderMedia();
-populateAvailableDates();
+await populateAvailableDates();
 return;
 }
 try {
@@ -561,8 +568,9 @@ publicConfig =
 fallback;
 }
 renderHours();
+await loadPublicMedia();
 renderMedia();
-populateAvailableDates();
+await populateAvailableDates();
 }
 /* =========================================================
 HORÁRIOS EXIBIDOS NO SITE
@@ -627,6 +635,53 @@ locationHours.textContent =
 /* =========================================================
 FOTOS / MÍDIA
 ========================================================= */
+async function loadPublicMedia() {
+if (!db) return;
+const media = { hero: '', about: '', portfolio: [] };
+const areas = ['hero', 'about', 'portfolio'];
+try {
+for (const area of areas) {
+const { data, error } = await db.storage
+.from('site-images')
+.list(area, {
+limit: 100,
+sortBy: { column: 'created_at', order: 'desc' }
+});
+if (error) {
+console.warn(`Não foi possível listar imagens de ${area}.`, error);
+continue;
+}
+const items = (data || [])
+.filter(item => item?.name && !item.name.startsWith('.'))
+.map(item => {
+const path = `${area}/${item.name}`;
+const { data: publicData } = db.storage
+.from('site-images')
+.getPublicUrl(path);
+const cleanName = String(item.name)
+.replace(/^\d+-/, '')
+.replace(/\.[^.]+$/, '')
+.replace(/[-_]+/g, ' ')
+.trim();
+return {
+src: publicData?.publicUrl || '',
+title: cleanName || 'Trabalho JD Nails',
+category: 'Portfólio'
+};
+})
+.filter(item => item.src);
+if (area === 'portfolio') media.portfolio = items;
+else if (items[0]) media[area] = items[0].src;
+}
+publicConfig = {
+...(publicConfig || localFallbackConfig()),
+media
+};
+} catch (error) {
+console.warn('Não foi possível carregar as fotos enviadas pelo painel.', error);
+}
+}
+
 function renderMedia() {
 const media =
 publicConfig?.media || {};
@@ -874,6 +929,22 @@ return false;
 return true;
 }
 /* =========================================================
+VERIFICAR SE A DATA AINDA TEM ALGUM HORÁRIO FUTURO
+========================================================= */
+function hasFutureSlot(value) {
+if (!value) return false;
+const fallback = localFallbackConfig();
+const settings = publicConfig?.settings || fallback.settings;
+const day = parseDateLocal(value).getDay();
+const schedule = (settings.hours || fallback.settings.hours)[day];
+if (!schedule || schedule.closed || !schedule.open || !schedule.close) return false;
+const todayKey = dateKey(new Date());
+if (value !== todayKey) return true;
+return generateTimeSlots(schedule.open, schedule.close)
+.some(slot => !isPastSlot(value, slot));
+}
+
+/* =========================================================
 MOSTRAR SOMENTE O DIA DA SEMANA
 ========================================================= */
 function prettyDate(
@@ -900,160 +971,177 @@ text.slice(1)
 );
 }
 /* =========================================================
-ENCONTRAR A PRÓXIMA DATA
-DE CADA DIA DA SEMANA
+FORMATAÇÃO DAS DATAS DISPONÍVEIS
 ========================================================= */
-function getNextWeekdayDate(
-dayNumber
-) {
-const today =
-new Date();
-today.setHours(
-0,
-0,
-0,
-0
-);
-/*
-PROCURA ATÉ 8 SEMANAS
-PARA FRENTE.
-*/
-for (
-let offset = 0;
-offset < 56;
-offset++
-) {
-const date =
-new Date(
-today
-);
-date.setDate(
-today.getDate() +
-offset
-);
-if (
-date.getDay() !==
-dayNumber
-) {
-continue;
+function formatDateOption(value) {
+const date = parseDateLocal(value);
+const weekday = new Intl.DateTimeFormat('pt-BR', {
+weekday: 'short'
+}).format(date).replace('.', '');
+const dayMonth = new Intl.DateTimeFormat('pt-BR', {
+day: '2-digit',
+month: '2-digit',
+year: 'numeric'
+}).format(date);
+const prettyWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+return `${prettyWeekday}, ${dayMonth}`;
 }
-const value =
-dateKey(
-date
-);
-if (
-isSelectableDate(
-value
-)
-) {
-return value;
-}
-}
-return null;
-}
+
 /* =========================================================
-PREENCHER DIAS DISPONÍVEIS
-SEMPRE NESTA ORDEM:
-SEGUNDA-FEIRA
-TERÇA-FEIRA
-QUARTA-FEIRA
-QUINTA-FEIRA
-SEXTA-FEIRA
-SÁBADO
+descobrir datas ocupadas
+Tenta primeiro a RPC datas_ocupadas (mais rápida).
+Se ela ainda não existir no Supabase, usa a RPC antiga
+horarios_ocupados, uma data por vez.
 ========================================================= */
-function populateAvailableDates() {
-if (!dateInput) {
+async function getBookedDatesForRange(dateValues = []) {
+const result = new Set();
+if (!db || !dateValues.length) {
+return result;
+}
+const sorted = [...dateValues].sort();
+try {
+const { data, error } = await db.rpc('datas_ocupadas', {
+p_inicio: sorted[0],
+p_fim: sorted[sorted.length - 1]
+});
+if (!error && Array.isArray(data)) {
+data.forEach(row => {
+const value = row?.data || row?.p_data || row;
+if (value) result.add(String(value).slice(0, 10));
+});
+return result;
+}
+} catch (error) {
+console.warn('RPC datas_ocupadas indisponível. Usando verificação por dia.', error);
+}
+
+const checks = await Promise.all(
+dateValues.map(async value => {
+const times = await getBookedTimes(value);
+return { value, occupied: times === null ? null : times.length > 0 };
+})
+);
+checks.forEach(item => {
+if (item.occupied === true) result.add(item.value);
+/* Se não foi possível verificar a data, ela não é exibida.
+   Isso evita oferecer um horário que pode já estar reservado. */
+if (item.occupied === null) result.add(item.value);
+});
+return result;
+}
+
+/* =========================================================
+PREENCHER SOMENTE DATAS REALMENTE DISPONÍVEIS
+- próximos 45 dias
+- exclui folgas, feriados e dias fechados
+- exclui qualquer data que já tenha agendamento ativo
+========================================================= */
+async function populateAvailableDates() {
+if (!dateInput || !dateOptions) return;
+
+const previousValue = dateInput.value;
+dateInput.value = '';
+dateOptions.innerHTML = `
+<div class="picker-loading">
+<span class="mini-spinner" aria-hidden="true"></span>
+Consultando a agenda…
+</div>
+`;
+resetTimeOptions('Escolha uma data livre primeiro.');
+
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+const candidates = [];
+for (let offset = 0; offset < AVAILABLE_DAYS_WINDOW; offset++) {
+const date = new Date(today);
+date.setDate(today.getDate() + offset);
+const value = dateKey(date);
+/*
+Mostramos somente dias reais de atendimento.
+Folgas manuais, feriados e dias fechados continuam escondidos.
+Datas que já têm agendamento aparecem, mas bloqueadas.
+*/
+if (isSelectableDate(value) && hasFutureSlot(value)) candidates.push(value);
+}
+
+const occupiedDates = await getBookedDatesForRange(candidates);
+occupiedDates.forEach(value => bookedDateCache.set(value, true));
+candidates.forEach(value => {
+if (!occupiedDates.has(value)) bookedDateCache.set(value, false);
+});
+
+if (!candidates.length) {
+dateOptions.innerHTML = `
+<div class="picker-placeholder">Nenhuma data de atendimento disponível no momento.</div>
+`;
+const help = $('#dateHelp');
+if (help) help.textContent = 'No momento não há datas disponíveis. Fale com o Studio pelo WhatsApp.';
 return;
 }
-dateInput.innerHTML =
-`
-<option value="">
-Selecione um dia disponível
-</option>
+
+const monthFmt = new Intl.DateTimeFormat('pt-BR', { month: 'short' });
+const weekdayFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' });
+
+dateOptions.innerHTML = candidates.map(value => {
+const date = parseDateLocal(value);
+const occupied = occupiedDates.has(value);
+const weekday = weekdayFmt.format(date).replace('.', '');
+const month = monthFmt.format(date).replace('.', '');
+const aria = occupied
+? `${formatDateOption(value)}, já agendado`
+: `${formatDateOption(value)}, disponível`;
+return `
+<button
+class="date-choice ${occupied ? 'is-booked' : 'is-free'}"
+type="button"
+data-date="${value}"
+role="option"
+aria-label="${aria}"
+aria-selected="false"
+${occupied ? 'disabled aria-disabled="true"' : ''}
+>
+<span class="date-choice-weekday">${weekday}</span>
+<strong class="date-choice-day">${String(date.getDate()).padStart(2, '0')}</strong>
+<span class="date-choice-month">${month}</span>
+<span class="date-choice-status">${occupied ? '🔒 Agendado' : 'Livre'}</span>
+</button>
 `;
-const weekDays = [
-{
-number: 1,
-label:
-'Segunda-feira'
-},
-{
-number: 2,
-label:
-'Terça-feira'
-},
-{
-number: 3,
-label:
-'Quarta-feira'
-},
-{
-number: 4,
-label:
-'Quinta-feira'
-},
-{
-number: 5,
-label:
-'Sexta-feira'
-},
-{
-number: 6,
-label:
-'Sábado'
+}).join('');
+
+const freeDates = candidates.filter(value => !occupiedDates.has(value));
+const help = $('#dateHelp');
+if (help) {
+help.textContent = freeDates.length
+? `${freeDates.length} datas livres nos próximos ${AVAILABLE_DAYS_WINDOW} dias. As datas com cadeado já possuem agendamento.`
+: 'Todas as próximas datas de atendimento estão ocupadas. Fale com o Studio pelo WhatsApp.';
 }
-];
-let added = 0;
-weekDays.forEach(
-weekDay => {
-const internalDate =
-getNextWeekdayDate(
-weekDay.number
-);
-if (
-!internalDate
-) {
-return;
+
+if (previousValue && freeDates.includes(previousValue)) {
+selectDateChoice(previousValue);
+await refreshTimeOptions();
 }
-const option =
-document.createElement(
-'option'
-);
-/*
-DATA REAL FICA
-ESCONDIDA NO VALUE.
-*/
-option.value =
-internalDate;
-/*
-CLIENTE VÊ SOMENTE
-O DIA DA SEMANA.
-*/
-option.textContent =
-weekDay.label;
-dateInput.appendChild(
-option
-);
-added++;
 }
-);
-if (
-added === 0
-) {
-dateInput.innerHTML =
-`
-<option value="">
-Nenhum dia disponível
-</option>
-`;
-dateInput.disabled =
-true;
-} else {
-dateInput.disabled =
-false;
+
+function selectDateChoice(value) {
+if (!dateInput || !dateOptions) return;
+const button = dateOptions.querySelector(`[data-date="${value}"]`);
+if (!button || button.disabled) return;
+dateInput.value = value;
+dateOptions.querySelectorAll('.date-choice').forEach(item => {
+const selected = item.dataset.date === value;
+item.classList.toggle('is-selected', selected);
+item.setAttribute('aria-selected', selected ? 'true' : 'false');
+});
+timeInput.value = '';
 }
-resetTimeOptions();
-}
+
+dateOptions?.addEventListener('click', async event => {
+const button = event.target.closest('.date-choice');
+if (!button || button.disabled) return;
+selectDateChoice(button.dataset.date);
+await refreshTimeOptions();
+});
+
 /* =========================================================
 RESETAR HORÁRIOS
 ========================================================= */
@@ -1061,17 +1149,11 @@ function resetTimeOptions(
 message =
 'Escolha primeiro o dia'
 ) {
-if (!timeInput) {
-return;
-}
-timeInput.innerHTML =
-`
-<option value="">
-${message}
-</option>
+if (timeInput) timeInput.value = '';
+if (!timeOptions) return;
+timeOptions.innerHTML = `
+<div class="picker-placeholder">${escapeHtml(message)}</div>
 `;
-timeInput.disabled =
-true;
 }
 /* =========================================================
 CONVERTER HORÁRIO
@@ -1209,134 +1291,84 @@ console.warn(
 'Não foi possível consultar horários ocupados.',
 error
 );
-return [];
+return null;
 }
 }
 /* =========================================================
 CARREGAR HORÁRIOS DISPONÍVEIS
 ========================================================= */
 async function refreshTimeOptions() {
-const help =
-$('#dateHelp');
-if (
-!dateInput?.value
-) {
-resetTimeOptions();
-if (help) {
-help.textContent =
-'Selecione um dia da semana para ver os horários livres.';
-}
+const help = $('#dateHelp');
+if (!dateInput?.value) {
+resetTimeOptions('Escolha uma data livre primeiro.');
+if (help) help.textContent = 'Escolha uma das datas marcadas como Livre.';
 return;
 }
-if (
-!isSelectableDate(
-dateInput.value
-)
-) {
-resetTimeOptions(
-'Dia indisponível'
-);
-if (help) {
-help.textContent =
-'Este dia está indisponível. Escolha outro dia.';
-}
+if (!isSelectableDate(dateInput.value)) {
+resetTimeOptions('Este dia está indisponível.');
+if (help) help.textContent = 'Este dia está indisponível. Escolha outra data.';
 return;
 }
-const fallback =
-localFallbackConfig();
-const hours =
-publicConfig
-?.settings
-?.hours ||
-fallback.settings.hours;
-const day =
-selectedDay();
-const schedule =
-hours[day] ||
-fallback.settings.hours[day];
-if (
-!schedule ||
-schedule.closed
-) {
-resetTimeOptions(
-'Dia fechado'
-);
+const fallback = localFallbackConfig();
+const hours = publicConfig?.settings?.hours || fallback.settings.hours;
+const day = selectedDay();
+const schedule = hours[day] || fallback.settings.hours[day];
+if (!schedule || schedule.closed) {
+resetTimeOptions('Este dia está fechado.');
 return;
 }
-resetTimeOptions(
-'Carregando horários...'
-);
-const booked =
-await getBookedTimes(
-dateInput.value
-);
-const allSlots =
-generateTimeSlots(
-schedule.open,
-schedule.close
-);
-const freeSlots =
-allSlots.filter(
-slot => {
-const alreadyBooked =
-booked.includes(
-slot
-);
-const past =
-isPastSlot(
-dateInput.value,
-slot
-);
-return (
-!alreadyBooked &&
-!past
-);
-}
-);
-if (
-freeSlots.length === 0
-) {
-resetTimeOptions(
-'Sem horários livres'
-);
-if (help) {
-help.textContent =
-'Este dia está sem horários livres. Escolha outro dia.';
-}
+resetTimeOptions('Carregando horários…');
+const booked = await getBookedTimes(dateInput.value);
+if (booked === null) {
+resetTimeOptions('Não foi possível verificar a agenda.');
+if (help) help.textContent = 'Não foi possível confirmar a disponibilidade agora. Atualize a página ou tente novamente.';
 return;
 }
-timeInput.innerHTML =
-`
-<option value="">
-Selecione um horário livre
-</option>
-`;
-freeSlots.forEach(
-slot => {
-const option =
-document.createElement(
-'option'
-);
-option.value =
-slot;
-option.textContent =
-slot;
-timeInput.appendChild(
-option
-);
+/*
+REGRA PEDIDA: qualquer agendamento ativo bloqueia a DATA INTEIRA.
+Mesmo que existam outros horários no expediente, a data não pode mais ser escolhida.
+*/
+if (booked.length > 0) {
+bookedDateCache.set(dateInput.value, true);
+resetTimeOptions('Esta data acabou de ser reservada.');
+if (help) help.textContent = 'Esta data acabou de ser reservada por outra cliente. Escolha outra data livre.';
+await populateAvailableDates();
+return;
 }
-);
-timeInput.disabled =
-false;
-if (help) {
-help.textContent =
-`Horários disponíveis das ${schedule.open} às ${schedule.close}.`;
+bookedDateCache.set(dateInput.value, false);
+const allSlots = generateTimeSlots(schedule.open, schedule.close);
+const freeSlots = allSlots.filter(slot => !isPastSlot(dateInput.value, slot));
+if (!freeSlots.length) {
+resetTimeOptions('Sem horários livres para este dia.');
+if (help) help.textContent = 'Este dia não possui mais horários futuros. Escolha outra data.';
+return;
 }
+if (!timeOptions) return;
+timeOptions.innerHTML = freeSlots.map(slot => `
+<button
+class="time-choice"
+type="button"
+data-time="${slot}"
+role="option"
+aria-selected="false"
+>
+<span class="time-choice-icon" aria-hidden="true">◷</span>
+${slot}
+</button>
+`).join('');
+if (help) help.textContent = `Data livre. Escolha um horário entre ${schedule.open} e ${schedule.close}.`;
 }
-dateInput?.addEventListener(
-'change',
-refreshTimeOptions
-);
+
+timeOptions?.addEventListener('click', event => {
+const button = event.target.closest('.time-choice');
+if (!button) return;
+timeInput.value = button.dataset.time || '';
+timeOptions.querySelectorAll('.time-choice').forEach(item => {
+const selected = item === button;
+item.classList.toggle('is-selected', selected);
+item.setAttribute('aria-selected', selected ? 'true' : 'false');
+});
+});
 /* =========================================================
 SALVAR AGENDAMENTO
 IMPORTANTE:
@@ -1428,7 +1460,7 @@ return {
 ok: false,
 conflict: true,
 message:
-'Esse horário acabou de ser reservado. Escolha outro horário.'
+'Essa data acabou de ser reservada por outra cliente. Escolha outra data.'
 };
 }
 throw bookingResult.error;
@@ -1514,6 +1546,28 @@ const selectedDate =
 dateInput.value;
 const selectedTime =
 timeInput.value;
+
+/*
+REVALIDAÇÃO FINAL DA DATA.
+Mesmo que duas clientes estejam com o site aberto ao mesmo tempo,
+a data é conferida novamente antes de registrar o pedido.
+*/
+const currentBookedTimes = await getBookedTimes(selectedDate);
+if (currentBookedTimes === null) {
+if (status) {
+status.textContent = 'Não foi possível confirmar a disponibilidade agora. Tente novamente em instantes.';
+}
+return;
+}
+if (currentBookedTimes.length > 0) {
+bookedDateCache.set(selectedDate, true);
+if (status) {
+status.textContent = 'Essa data acabou de ser agendada por outra cliente. Escolha outra data disponível.';
+}
+await populateAvailableDates();
+return;
+}
+
 const firstVisit =
 $('#firstVisit')
 ?.value ||
@@ -1571,28 +1625,31 @@ saveResult.message ||
 if (
 saveResult.conflict
 ) {
-await refreshTimeOptions();
+bookedDateCache.set(selectedDate, true);
+await populateAvailableDates();
 }
 return;
 }
+/* A partir daqui a data fica automaticamente indisponível no site. */
+bookedDateCache.set(selectedDate, true);
 /*
 MENSAGEM COMPLETA
 DO WHATSAPP
 */
 const message = [
-'Olá, Studio JD! n',
+'Olá, Studio JD! 💗',
 '',
 'Gostaria de solicitar um agendamento.',
 '',
-`n Nome: ${name}`,
-`n WhatsApp: ${phone}`,
-`n Serviço: ${service}`,
-`n Dia: ${weekDay}`,
-`n Horário: ${selectedTime}`,
-`n Primeira visita: ${firstVisit}`,
-`n Observações: ${notes}`,
+`👤 Nome: ${name}`,
+`📱 WhatsApp: ${phone}`,
+`💅 Serviço: ${service}`,
+`📅 Dia: ${weekDay}`,
+`⏰ Horário: ${selectedTime}`,
+`✨ Primeira visita: ${firstVisit}`,
+`📝 Observações: ${notes}`,
 '',
-'Pode confirmar meu atendimento, por favor? n'
+'Pode confirmar meu atendimento, por favor? 💗'
 ].join('\n');
 /*
 NÚMERO DO WHATSAPP
@@ -1741,3 +1798,13 @@ link.className || 'link-whatsapp'
 );
 });
 loadPublicConfig();
+
+/* Atualiza a agenda quando a cliente volta para a página. */
+window.addEventListener('pageshow', () => {
+if (publicConfig) populateAvailableDates();
+});
+document.addEventListener('visibilitychange', () => {
+if (document.visibilityState === 'visible' && publicConfig) {
+populateAvailableDates();
+}
+});

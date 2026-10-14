@@ -647,7 +647,7 @@
             <div class="mock-nail nail-1">
 
               <img
-                src="assets/WhatsApp Image 2026-09-03 at 15.49.29.jpeg"
+                src="assets/elegancia-minimalista.jpeg"
                 alt="Elegância minimalista - Studio JD"
                 loading="lazy"
               />
@@ -676,7 +676,7 @@
             <div class="mock-nail nail-2">
 
               <img
-                src="assets/pézinho de luxo.jpg"
+                src="assets/pezinho-de-luxo.jpg"
                 alt="Rosé delicado - Studio JD"
                 loading="lazy"
               />
@@ -705,7 +705,7 @@
             <div class="mock-nail nail-3">
 
               <img
-                src="assets/WhatsApp Image 2026-09-03 at 15.41.36.jpeg"
+                src="assets/detalhe-premium.jpeg"
                 alt="Detalhe premium - Studio JD"
                 loading="lazy"
               />
@@ -734,7 +734,7 @@
             <div class="mock-nail nail-4">
 
               <img
-                src="assets/mão luxuosa.jpg"
+                src="assets/mao-luxuosa.jpg"
                 alt="Alongamento elegante - Studio JD"
                 loading="lazy"
               />
@@ -763,7 +763,7 @@
             <div class="mock-nail nail-5">
 
               <img
-                src="assets/pé.jpg"
+                src="assets/pe.jpg"
                 alt="Natural e sofisticado - Studio JD"
                 loading="lazy"
               />
@@ -1097,47 +1097,6 @@
 
 
             <label>
-              Dia disponível
-
-              <select
-                id="date"
-                name="date"
-                required
-              >
-
-                <option value="">
-                  Carregando dias disponíveis...
-                </option>
-
-              </select>
-
-            </label>
-
-          </div>
-
-
-          <div class="form-row two">
-
-            <label>
-              Horário disponível
-
-              <select
-                id="time"
-                name="time"
-                required
-                disabled
-              >
-
-                <option value="">
-                  Escolha primeiro o dia
-                </option>
-
-              </select>
-
-            </label>
-
-
-            <label>
               É sua primeira visita?
 
               <select
@@ -1145,13 +1104,8 @@
                 name="firstVisit"
               >
 
-                <option>
-                  Sim
-                </option>
-
-                <option>
-                  Não
-                </option>
+                <option>Sim</option>
+                <option>Não</option>
 
               </select>
 
@@ -1160,12 +1114,65 @@
           </div>
 
 
+          <section class="availability-picker" aria-labelledby="datePickerTitle">
+            <div class="picker-heading">
+              <span class="picker-step">1</span>
+              <div>
+                <strong id="datePickerTitle">Escolha o dia</strong>
+                <small>Datas já reservadas aparecem bloqueadas.</small>
+              </div>
+            </div>
+
+            <input type="hidden" id="date" name="date" value="" />
+
+            <div
+              class="date-options-grid"
+              id="dateOptions"
+              role="listbox"
+              aria-label="Datas de atendimento"
+              aria-live="polite"
+            >
+              <div class="picker-loading">
+                <span class="mini-spinner" aria-hidden="true"></span>
+                Consultando a agenda…
+              </div>
+            </div>
+
+            <div class="availability-legend" aria-hidden="true">
+              <span><i class="legend-dot is-free"></i>Livre</span>
+              <span><i class="legend-dot is-busy"></i>Já agendado</span>
+            </div>
+          </section>
+
+
+          <section class="availability-picker time-picker" aria-labelledby="timePickerTitle">
+            <div class="picker-heading">
+              <span class="picker-step">2</span>
+              <div>
+                <strong id="timePickerTitle">Escolha o horário</strong>
+                <small>Os horários aparecem depois que você escolher uma data livre.</small>
+              </div>
+            </div>
+
+            <input type="hidden" id="time" name="time" value="" />
+
+            <div
+              class="time-options-grid"
+              id="timeOptions"
+              role="listbox"
+              aria-label="Horários disponíveis"
+              aria-live="polite"
+            >
+              <div class="picker-placeholder">Escolha uma data livre primeiro.</div>
+            </div>
+          </section>
+
+
           <small
             class="date-help"
             id="dateHelp"
           >
-            Selecione um dos dias disponíveis para ver
-            somente os horários livres.
+            As datas em cinza já possuem agendamento e não podem ser selecionadas.
           </small>
 
 

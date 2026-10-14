@@ -15,8 +15,7 @@ if errorlevel 1 (
 )
 echo Site:   http://localhost:3000
 echo Admin:  http://localhost:3000/admin.html
-echo Login:  jdnails
-echo Senha:  jd2026
+echo Dados:  Supabase
 echo.
 echo Para encerrar, pressione CTRL+C.
 echo.
